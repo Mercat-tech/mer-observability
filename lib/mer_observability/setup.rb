@@ -1,6 +1,10 @@
 require 'opentelemetry-sdk'
 require 'opentelemetry-exporter-otlp'
 require 'opentelemetry-metrics-sdk'
+require 'opentelemetry/instrumentation/rack'
+require 'opentelemetry/instrumentation/action_pack'
+require 'opentelemetry/instrumentation/action_view'
+require 'opentelemetry/instrumentation/active_support'
 require 'opentelemetry/instrumentation/rails'
 require 'opentelemetry/instrumentation/active_record'
 require 'opentelemetry/instrumentation/sidekiq'
@@ -37,6 +41,10 @@ module MerObservability
         otel.tracer_provider.sampler = sampler if sampler
         otel.add_metric_reader(metric_reader) if metric_reader
 
+        otel.use 'OpenTelemetry::Instrumentation::Rack'
+        otel.use 'OpenTelemetry::Instrumentation::ActionPack'
+        otel.use 'OpenTelemetry::Instrumentation::ActionView'
+        otel.use 'OpenTelemetry::Instrumentation::ActiveSupport'
         otel.use 'OpenTelemetry::Instrumentation::Rails'
         otel.use 'OpenTelemetry::Instrumentation::ActiveRecord'
         otel.use 'OpenTelemetry::Instrumentation::Sidekiq'

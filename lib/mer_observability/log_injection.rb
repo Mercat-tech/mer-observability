@@ -1,8 +1,10 @@
 require 'opentelemetry-sdk'
 
 module MerObservability
-  # Prepends `trace_id=<id> span_id=<id>` to every line emitted by Rails.logger
-  # so each log can be correlated to its trace in your tracing backend UI.
+  # Prepends `service=<name> trace_id=<id> span_id=<id>` to every line emitted
+  # by Rails.logger so each log can be attributed to a service and correlated
+  # to its trace in your tracing backend UI. Trace/span ids are only added
+  # when a span is active in the current context.
   #
   # Implementation note: we `prepend` a module into the existing formatter's
   # singleton class instead of replacing the formatter. This preserves the
@@ -52,16 +54,19 @@ module MerObservability
     end
 
     def self.trace_prefix
+      service = MerObservability.config.service_name.to_s
+      prefix = service.empty? ? +'' : +"service=#{service} "
+
       span = OpenTelemetry::Trace.current_span
-      return '' unless span
+      return prefix unless span
 
       ctx = span.context
-      return '' unless ctx&.valid?
+      return prefix unless ctx&.valid?
 
       trace_id = ctx.hex_trace_id
-      return '' if trace_id.nil? || trace_id == INVALID_HEX_ID
+      return prefix if trace_id.nil? || trace_id == INVALID_HEX_ID
 
-      "trace_id=#{trace_id} span_id=#{ctx.hex_span_id} "
+      prefix << "trace_id=#{trace_id} span_id=#{ctx.hex_span_id} "
     rescue StandardError
       ''
     end

@@ -32,6 +32,34 @@ RSpec.describe MerObservability::LogInjection do
       expect(io.string).not_to include('trace_id=')
     end
 
+    it 'prepends service= even when no span is active' do
+      MerObservability.configure { |c| c.service_name = 'mer-test' }
+      described_class.install!(logger)
+      allow(OpenTelemetry::Trace).to receive(:current_span).and_return(nil)
+
+      logger.info('hello world')
+      expect(io.string).to include('service=mer-test ')
+      expect(io.string).not_to include('trace_id=')
+    end
+
+    it 'orders prefix as service then trace_id then span_id when span is active' do
+      MerObservability.configure { |c| c.service_name = 'mer-test' }
+      described_class.install!(logger)
+      stub_active_span
+
+      logger.info('hello world')
+      expect(io.string).to match(/service=mer-test trace_id=#{'a' * 32} span_id=#{'b' * 16} /)
+    end
+
+    it 'omits the service= token when service_name is empty' do
+      MerObservability.configure { |c| c.service_name = '' }
+      described_class.install!(logger)
+      allow(OpenTelemetry::Trace).to receive(:current_span).and_return(nil)
+
+      logger.info('hello world')
+      expect(io.string).not_to include('service=')
+    end
+
     it 'prepends trace_id and span_id when an active valid span exists' do
       described_class.install!(logger)
       stub_active_span
