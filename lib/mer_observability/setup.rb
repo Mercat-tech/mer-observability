@@ -48,12 +48,20 @@ module MerObservability
     end
 
     def self.build_trace_exporter(config)
-      OpenTelemetry::Exporter::OTLP::Exporter.new(endpoint: config.endpoint)
+      OpenTelemetry::Exporter::OTLP::Exporter.new(endpoint: trace_endpoint(config))
     end
 
     def self.build_metric_exporter(config)
       require 'opentelemetry-exporter-otlp-metrics'
-      OpenTelemetry::Exporter::OTLP::Metrics::MetricsExporter.new(endpoint: config.endpoint)
+      OpenTelemetry::Exporter::OTLP::Metrics::MetricsExporter.new(endpoint: metrics_endpoint(config))
+    end
+
+    def self.trace_endpoint(config)
+      "#{config.endpoint.to_s.chomp('/')}/v1/traces"
+    end
+
+    def self.metrics_endpoint(config)
+      "#{config.endpoint.to_s.chomp('/')}/v1/metrics"
     end
 
     def self.build_metric_reader(config)

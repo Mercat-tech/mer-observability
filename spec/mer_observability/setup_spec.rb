@@ -43,4 +43,28 @@ RSpec.describe MerObservability::Setup do
       expect(described_class.build_trace_exporter(config)).to eq(:http_exporter)
     end
   end
+
+  describe '.trace_endpoint' do
+    it 'appends /v1/traces to the base endpoint' do
+      allow(config).to receive(:endpoint).and_return('http://collector:4318')
+      expect(described_class.trace_endpoint(config)).to eq('http://collector:4318/v1/traces')
+    end
+
+    it 'strips trailing slash before appending' do
+      allow(config).to receive(:endpoint).and_return('http://collector:4318/')
+      expect(described_class.trace_endpoint(config)).to eq('http://collector:4318/v1/traces')
+    end
+  end
+
+  describe '.metrics_endpoint' do
+    it 'appends /v1/metrics to the base endpoint' do
+      allow(config).to receive(:endpoint).and_return('http://collector:4318')
+      expect(described_class.metrics_endpoint(config)).to eq('http://collector:4318/v1/metrics')
+    end
+
+    it 'strips trailing slash before appending' do
+      allow(config).to receive(:endpoint).and_return('http://collector:4318/')
+      expect(described_class.metrics_endpoint(config)).to eq('http://collector:4318/v1/metrics')
+    end
+  end
 end
