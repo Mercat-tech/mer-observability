@@ -5,6 +5,10 @@ module MerObservability
   # The SDK invokes the provided callbacks at each metric export cycle
   # (interval is controlled by PeriodicMetricReader in setup.rb).
   #
+  # Callback contract (opentelemetry-metrics-sdk >= 0.13): each callback takes
+  # zero args and returns a Numeric. The SDK wraps the return value as the
+  # observation. A nil return is dropped (no observation recorded).
+  #
   # The OTel metrics SDK is still in beta — semantic names follow the proposal
   # at https://opentelemetry.io/docs/specs/semconv/runtime/ but may evolve.
   module RuntimeMetrics
@@ -38,25 +42,35 @@ module MerObservability
       def gc_gauge_specs
         [
           { name: 'ruby.gc.count',           unit: '1', description: 'Total GC runs',
-            callback: ->(o) { o.observe(GC.stat[:count].to_i) } },
+            callback: safe(-> { GC.stat[:count].to_i }) },
           { name: 'ruby.gc.major_count',     unit: '1', description: 'Major GC runs',
-            callback: ->(o) { o.observe(GC.stat[:major_gc_count].to_i) } },
+            callback: safe(-> { GC.stat[:major_gc_count].to_i }) },
           { name: 'ruby.gc.minor_count',     unit: '1', description: 'Minor GC runs',
-            callback: ->(o) { o.observe(GC.stat[:minor_gc_count].to_i) } },
+            callback: safe(-> { GC.stat[:minor_gc_count].to_i }) },
           { name: 'ruby.gc.heap_live_slots', unit: '1', description: 'Live heap slots',
-            callback: ->(o) { o.observe(GC.stat[:heap_live_slots].to_i) } },
+            callback: safe(-> { GC.stat[:heap_live_slots].to_i }) },
           { name: 'ruby.gc.heap_free_slots', unit: '1', description: 'Free heap slots',
-            callback: ->(o) { o.observe(GC.stat[:heap_free_slots].to_i) } }
+            callback: safe(-> { GC.stat[:heap_free_slots].to_i }) }
         ]
       end
 
       def system_gauge_specs
         [
           { name: 'ruby.threads.count',     unit: '1',  description: 'Active Ruby threads',
-            callback: ->(o) { o.observe(Thread.list.count) } },
+            callback: safe(-> { Thread.list.count }) },
           { name: 'ruby.process.rss_bytes', unit: 'By', description: 'Process resident set size (Linux only)',
-            callback: ->(o) { o.observe(read_rss_bytes) } }
+            callback: safe(-> { read_rss_bytes }) }
         ]
+      end
+
+      # Wraps a metric callback so a transient failure (e.g. /proc unreadable)
+      # silently drops that observation instead of contaminating the export cycle.
+      def safe(callback)
+        lambda do
+          callback.call
+        rescue StandardError
+          nil
+        end
       end
 
       def read_rss_bytes
