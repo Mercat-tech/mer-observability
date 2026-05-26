@@ -10,6 +10,7 @@ RSpec.describe MerObservability::Configuration do
       OTEL_LOG_INJECTION
       OTEL_RUBY_RUNTIME_METRICS
       OTEL_RUBY_RUNTIME_METRICS_INTERVAL
+      MER_LOG_FORMAT
       APP_VERSION
       GIT_SHA
       RENV
@@ -64,6 +65,43 @@ RSpec.describe MerObservability::Configuration do
 
     it 'defaults runtime_metrics_interval to 30 seconds' do
       expect(config.runtime_metrics_interval).to eq(30)
+    end
+
+    it 'defaults log_format to "text" in development' do
+      expect(config.log_format).to eq('text')
+    end
+  end
+
+  describe 'log_format defaults by environment' do
+    it 'defaults to "json" when RAILS_ENV=production' do
+      ENV['RAILS_ENV'] = 'production'
+      expect(described_class.new.log_format).to eq('json')
+    end
+
+    it 'defaults to "json" when RENV=stage' do
+      ENV['RENV'] = 'stage'
+      expect(described_class.new.log_format).to eq('json')
+    end
+
+    it 'defaults to "text" when RAILS_ENV=development' do
+      ENV['RAILS_ENV'] = 'development'
+      expect(described_class.new.log_format).to eq('text')
+    end
+
+    it 'defaults to "text" when RAILS_ENV=test' do
+      ENV['RAILS_ENV'] = 'test'
+      expect(described_class.new.log_format).to eq('text')
+    end
+
+    it 'honors MER_LOG_FORMAT override even in production' do
+      ENV['RAILS_ENV'] = 'production'
+      ENV['MER_LOG_FORMAT'] = 'text'
+      expect(described_class.new.log_format).to eq('text')
+    end
+
+    it 'honors MER_LOG_FORMAT override in development' do
+      ENV['MER_LOG_FORMAT'] = 'json'
+      expect(described_class.new.log_format).to eq('json')
     end
   end
 

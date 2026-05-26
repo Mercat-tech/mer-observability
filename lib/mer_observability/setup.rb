@@ -25,8 +25,26 @@ module MerObservability
 
       RuntimeMetrics.install! if config.runtime_metrics_enabled
       LogInjection.install!   if config.log_injection
+      install_sidekiq_logger!(config)
     rescue StandardError => e
       warn "[MerObservability] Setup failed: #{e.message} — tracing disabled."
+    end
+
+    # Patches Sidekiq.logger.formatter with the gem's Formatter factory result
+    # so that worker logs share the same format as Rails.logger. Only runs in
+    # the Sidekiq server process (Sidekiq.configure_server is a no-op in web
+    # processes). Idempotent and safe when Sidekiq is not loaded.
+    def self.install_sidekiq_logger!(_config)
+      return unless defined?(Sidekiq)
+      return unless Sidekiq.respond_to?(:configure_server)
+
+      Sidekiq.configure_server do |sk_config|
+        sk_config.on(:startup) do
+          Sidekiq.logger.formatter = Formatter.build if Sidekiq.logger
+        end
+      end
+    rescue StandardError => e
+      warn "[MerObservability] Sidekiq logger setup failed: #{e.message}"
     end
 
     def self.configure_sdk(config, span_processor, sampler, metric_reader)
