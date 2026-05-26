@@ -80,13 +80,12 @@ module MerObservability
       {}
     end
 
-    # Pulls fields from ActiveSupport::TaggedLogging current_tags. The
-    # underlying TaggedLogging::Formatter already prepended the tags as text
-    # to `msg` by the time we run; we read the original tag array from the
-    # thread-local that TaggedLogging populates and translate to fields.
+    # Pulls fields from ActiveSupport::TaggedLogging tags. The underlying
+    # TaggedLogging::Formatter already prepended the tags as text to `msg` by
+    # the time we run; we read the original tag array and translate to fields.
     def tagged_context(_msg)
-      tags = Thread.current[:activesupport_tagged_logging_tags]
-      return {} if tags.nil? || tags.empty?
+      tags = resolve_tags
+      return {} if tags.empty?
 
       fields = {}
       tags.each_with_index do |tag, idx|
@@ -100,6 +99,21 @@ module MerObservability
       fields
     rescue StandardError
       {}
+    end
+
+    # Reads the active TaggedLogging tags in a Rails-version-agnostic way.
+    # Rails 7.1 moved tags off Thread.current into IsolatedExecutionState
+    # keyed per formatter, exposed via the `current_tags` method that
+    # TaggedLogging::Formatter mixes into this instance. We prefer that method
+    # and fall back to the legacy thread-local for older Rails / plain Logger.
+    def resolve_tags
+      if respond_to?(:current_tags)
+        current_tags || []
+      else
+        Thread.current[:activesupport_tagged_logging_tags] || []
+      end
+    rescue StandardError
+      []
     end
 
     def msg_payload(msg)
@@ -121,8 +135,8 @@ module MerObservability
     # contains only the actual log message (tags are extracted to fields by
     # `tagged_context`).
     def strip_tag_prefix(str)
-      tags = Thread.current[:activesupport_tagged_logging_tags]
-      return str if tags.nil? || tags.empty?
+      tags = resolve_tags
+      return str if tags.empty?
 
       prefix = tags.map { |t| "[#{t}] " }.join
       str.start_with?(prefix) ? str[prefix.length..] : str

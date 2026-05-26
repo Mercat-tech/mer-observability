@@ -24,7 +24,6 @@ module MerObservability
       configure_sdk(config, span_processor, build_sampler(config), metric_reader)
 
       RuntimeMetrics.install! if config.runtime_metrics_enabled
-      LogInjection.install!   if config.log_injection
       install_sidekiq_logger!(config)
     rescue StandardError => e
       warn "[MerObservability] Setup failed: #{e.message} — tracing disabled."

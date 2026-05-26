@@ -151,6 +151,31 @@ RSpec.describe MerObservability::JsonFormatter do
       expect(parsed).not_to have_key('request_id')
       expect(parsed).not_to have_key('tenant')
     end
+
+    context 'Rails 7.1 — tags via current_tags method (not thread-local)' do
+      # Rails 7.1 moved tags off Thread.current into IsolatedExecutionState,
+      # exposed through the current_tags method that TaggedLogging::Formatter
+      # mixes into the formatter instance. Simulate that here.
+      let(:formatter) do
+        described_class.new.tap do |f|
+          tags = ['req-7-1', 'TENANT: moulie']
+          f.define_singleton_method(:current_tags) { tags }
+        end
+      end
+
+      before { Thread.current[:activesupport_tagged_logging_tags] = nil }
+
+      it 'reads tags from current_tags when the thread-local is empty' do
+        parsed = parse(formatter.call('INFO', time, nil, '[req-7-1] [TENANT: moulie] hello'))
+        expect(parsed['request_id']).to eq('req-7-1')
+        expect(parsed['tenant']).to eq('moulie')
+      end
+
+      it 'strips the tag prefix using current_tags' do
+        parsed = parse(formatter.call('INFO', time, nil, '[req-7-1] [TENANT: moulie] Started GET'))
+        expect(parsed['message']).to eq('Started GET')
+      end
+    end
   end
 
   describe 'defaults: per-instance presets' do
