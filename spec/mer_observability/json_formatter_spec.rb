@@ -178,6 +178,54 @@ RSpec.describe MerObservability::JsonFormatter do
     end
   end
 
+  describe 'Sidekiq context' do
+    after do
+      hide_const('Sidekiq') if defined?(Sidekiq)
+      Thread.current[:sidekiq_tid] = nil
+      Thread.current[:sidekiq_context] = nil
+    end
+
+    it 'omits sidekiq fields when Sidekiq is not loaded' do
+      hide_const('Sidekiq') if defined?(Sidekiq)
+      parsed = parse(formatter.call('INFO', time, nil, 'hello'))
+      expect(parsed).not_to have_key('jid')
+      expect(parsed).not_to have_key('job_class')
+    end
+
+    it 'reads jid/class from Sidekiq::Context.current (Sidekiq 6.5+/7)' do
+      context_mod = Module.new do
+        def self.current = { jid: 'abc123', class: 'Sqs::UpdateOrderStatusWorker' }
+      end
+      stub_const('Sidekiq', Module.new)
+      stub_const('Sidekiq::Context', context_mod)
+      Thread.current[:sidekiq_tid] = 'tid-xyz'
+
+      parsed = parse(formatter.call('INFO', time, nil, 'start'))
+      expect(parsed['jid']).to eq('abc123')
+      expect(parsed['job_class']).to eq('Sqs::UpdateOrderStatusWorker')
+      expect(parsed['tid']).to eq('tid-xyz')
+    end
+
+    it 'parses jid/class from the thread-local string context (Sidekiq 5.x)' do
+      stub_const('Sidekiq', Module.new)
+      Thread.current[:sidekiq_context] = ['Sqs::DeployMenuWorker JID-def456']
+      Thread.current[:sidekiq_tid] = 'tid-5x'
+
+      parsed = parse(formatter.call('INFO', time, nil, 'start'))
+      expect(parsed['jid']).to eq('def456')
+      expect(parsed['job_class']).to eq('Sqs::DeployMenuWorker')
+      expect(parsed['tid']).to eq('tid-5x')
+    end
+
+    it 'omits jid/job_class when there is no active job (web process)' do
+      stub_const('Sidekiq', Module.new)
+      # No Sidekiq::Context, no thread-local context → web process
+      parsed = parse(formatter.call('INFO', time, nil, 'hello'))
+      expect(parsed).not_to have_key('jid')
+      expect(parsed).not_to have_key('job_class')
+    end
+  end
+
   describe 'defaults: per-instance presets' do
     it 'includes preset fields in every emission' do
       sqs_formatter = described_class.new(defaults: { component: 'sqs', worker: 'OrderJob' })

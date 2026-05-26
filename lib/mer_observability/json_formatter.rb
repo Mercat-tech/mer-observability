@@ -36,6 +36,7 @@ module MerObservability
       payload.merge!(otel_context)
       payload.merge!(tenant_context)
       payload.merge!(tagged_context(msg))
+      payload.merge!(sidekiq_context)
       payload[:progname] = progname.to_s unless progname.to_s.empty?
       payload.merge!(msg_payload(msg))
       "#{::JSON.generate(payload)}\n"
@@ -114,6 +115,33 @@ module MerObservability
       end
     rescue StandardError
       []
+    end
+
+    # Captures the active Sidekiq job context so worker logs carry jid,
+    # job_class and tid — enabling grouping every log line of a single job
+    # execution (start → work → done) by `jid`, and filtering by `job_class`.
+    # Version-aware: Sidekiq 6.5+/7 exposes Sidekiq::Context.current (a Hash);
+    # Sidekiq 5.x stores a string like "MyWorker JID-abc" in a thread-local
+    # array. Returns {} outside a Sidekiq server (e.g., web process).
+    def sidekiq_context
+      return {} unless defined?(Sidekiq)
+
+      fields = {}
+      tid = Thread.current[:sidekiq_tid]
+      fields[:tid] = tid unless tid.nil?
+
+      if defined?(Sidekiq::Context) && Sidekiq::Context.respond_to?(:current)
+        ctx = Sidekiq::Context.current || {}
+        fields[:jid]       = ctx[:jid]   if ctx[:jid]
+        fields[:job_class] = ctx[:class] if ctx[:class]
+      elsif (raw = Thread.current[:sidekiq_context]).is_a?(Array) && raw.any?
+        joined = raw.join(' ')
+        fields[:job_class] = Regexp.last_match(1) if joined =~ /\A(\S+)\s+JID-/
+        fields[:jid]       = Regexp.last_match(1) if joined =~ /JID-(\S+)/
+      end
+      fields
+    rescue StandardError
+      {}
     end
 
     def msg_payload(msg)
