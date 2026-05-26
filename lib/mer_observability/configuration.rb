@@ -8,6 +8,7 @@ module MerObservability
                   :capture_tenant,
                   :sampler_ratio,
                   :log_injection,
+                  :log_format,
                   :runtime_metrics_enabled,
                   :runtime_metrics_interval
 
@@ -20,6 +21,7 @@ module MerObservability
       @capture_tenant           = true
       @sampler_ratio            = ENV.fetch('OTEL_TRACES_SAMPLER_ARG', '1.0').to_f
       @log_injection            = ENV.fetch('OTEL_LOG_INJECTION', 'true') == 'true'
+      @log_format               = ENV['MER_LOG_FORMAT'] || default_log_format
       @runtime_metrics_enabled  = ENV.fetch('OTEL_RUBY_RUNTIME_METRICS', 'true') == 'true'
       @runtime_metrics_interval = ENV.fetch('OTEL_RUBY_RUNTIME_METRICS_INTERVAL', '30').to_i
     end
@@ -39,6 +41,14 @@ module MerObservability
       version_from_env || version_from_rails_files || 'unknown'
     rescue StandardError
       'unknown'
+    end
+
+    def default_log_format
+      stage_or_prod?(@environment) ? 'json' : 'text'
+    end
+
+    def stage_or_prod?(env)
+      %w[production stage staging prod].include?(env.to_s.downcase)
     end
 
     def version_from_env
