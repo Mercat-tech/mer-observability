@@ -226,6 +226,34 @@ RSpec.describe MerObservability::JsonFormatter do
     end
   end
 
+  describe 'app log context (MerObservability.log_context)' do
+    after { MerObservability.reset_log_context! }
+
+    it 'merges fields from log_context into every line' do
+      MerObservability.log_context[:origin_request_id] = 'req-origin-1'
+      parsed = parse(formatter.call('INFO', time, nil, 'hello'))
+      expect(parsed['origin_request_id']).to eq('req-origin-1')
+    end
+
+    it 'symbolizes string keys from log_context' do
+      MerObservability.log_context['custom_field'] = 'v'
+      parsed = parse(formatter.call('INFO', time, nil, 'hello'))
+      expect(parsed['custom_field']).to eq('v')
+    end
+
+    it 'adds nothing when log_context is empty' do
+      MerObservability.reset_log_context!
+      parsed = parse(formatter.call('INFO', time, nil, 'hello'))
+      expect(parsed).not_to have_key('origin_request_id')
+    end
+
+    it 'lets an explicit Hash msg override a log_context field' do
+      MerObservability.log_context[:order_id] = 'from-context'
+      parsed = parse(formatter.call('INFO', time, nil, message: 'x', order_id: 'from-msg'))
+      expect(parsed['order_id']).to eq('from-msg')
+    end
+  end
+
   describe 'defaults: per-instance presets' do
     it 'includes preset fields in every emission' do
       sqs_formatter = described_class.new(defaults: { component: 'sqs', worker: 'OrderJob' })

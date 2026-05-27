@@ -149,6 +149,29 @@ sqs_logger.info("Processing message")
 # JSON includes: component, queue_url, message_id, worker, plus the standard schema
 ```
 
+### Per-thread log context (`MerObservability.log_context`)
+
+A generic, app-owned extension point. Anything you put in `MerObservability.log_context`
+(a per-thread hash) is merged into **every** JSON log line emitted on that thread —
+without per-call wiring. The gem does not define what goes here; apps decide.
+
+Typical use: a Sidekiq server middleware that propagates an originating request id so a
+worker's logs can be correlated with the request that enqueued the job:
+
+```ruby
+# Sidekiq server middleware (app side)
+def call(worker, job, queue)
+  MerObservability.log_context[:origin_request_id] = job['origin_request_id'] if job['origin_request_id']
+  yield
+ensure
+  MerObservability.reset_log_context!   # clear between jobs on the reused thread
+end
+```
+
+Every line that worker logs then carries `origin_request_id`. Remember to clear it
+(`reset_log_context!`) at the end of the unit of work so it does not leak to the next
+job on the same thread. No-op when the context is empty.
+
 ### Text formatter (dev only)
 
 When `MER_LOG_FORMAT=text` (the default in development), each line is rendered as the

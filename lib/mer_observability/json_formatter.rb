@@ -37,6 +37,7 @@ module MerObservability
       payload.merge!(tenant_context)
       payload.merge!(tagged_context(msg))
       payload.merge!(sidekiq_context)
+      payload.merge!(app_log_context)
       payload[:progname] = progname.to_s unless progname.to_s.empty?
       payload.merge!(msg_payload(msg))
       "#{::JSON.generate(payload)}\n"
@@ -140,6 +141,17 @@ module MerObservability
         fields[:jid]       = Regexp.last_match(1) if joined =~ /JID-(\S+)/
       end
       fields
+    rescue StandardError
+      {}
+    end
+
+    # Merges the app-populated per-thread log context (MerObservability.log_context).
+    # Symbolizes keys so it composes cleanly with the rest of the payload.
+    def app_log_context
+      ctx = MerObservability.log_context
+      return {} if ctx.nil? || ctx.empty?
+
+      ctx.transform_keys(&:to_sym)
     rescue StandardError
       {}
     end
