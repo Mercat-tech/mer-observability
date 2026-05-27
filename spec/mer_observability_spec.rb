@@ -32,4 +32,30 @@ RSpec.describe MerObservability do
       expect(second).not_to equal(first)
     end
   end
+
+  describe '.log_context' do
+    after { described_class.reset_log_context! }
+
+    it 'returns an empty hash by default' do
+      described_class.reset_log_context!
+      expect(described_class.log_context).to eq({})
+    end
+
+    it 'persists fields set on it within the thread' do
+      described_class.log_context[:origin_request_id] = 'req-1'
+      expect(described_class.log_context[:origin_request_id]).to eq('req-1')
+    end
+
+    it 'is cleared by reset_log_context!' do
+      described_class.log_context[:foo] = 'bar'
+      described_class.reset_log_context!
+      expect(described_class.log_context).to eq({})
+    end
+
+    it 'is isolated per thread' do
+      described_class.log_context[:foo] = 'main'
+      other = Thread.new { described_class.log_context.dup }.value
+      expect(other).to eq({})
+    end
+  end
 end
