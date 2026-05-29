@@ -10,6 +10,7 @@ RSpec.describe MerObservability::Configuration do
       OTEL_LOG_INJECTION
       OTEL_RUBY_RUNTIME_METRICS
       OTEL_RUBY_RUNTIME_METRICS_INTERVAL
+      OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
       MER_LOG_FORMAT
       APP_VERSION
       GIT_SHA
@@ -65,6 +66,10 @@ RSpec.describe MerObservability::Configuration do
 
     it 'defaults runtime_metrics_interval to 30 seconds' do
       expect(config.runtime_metrics_interval).to eq(30)
+    end
+
+    it 'defaults metrics_temporality_preference to "delta"' do
+      expect(config.metrics_temporality_preference).to eq('delta')
     end
 
     it 'defaults log_format to "text" in development' do
@@ -141,6 +146,11 @@ RSpec.describe MerObservability::Configuration do
     it 'reads OTEL_RUBY_RUNTIME_METRICS_INTERVAL as integer' do
       ENV['OTEL_RUBY_RUNTIME_METRICS_INTERVAL'] = '60'
       expect(described_class.new.runtime_metrics_interval).to eq(60)
+    end
+
+    it 'reads OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE to override default' do
+      ENV['OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE'] = 'cumulative'
+      expect(described_class.new.metrics_temporality_preference).to eq('cumulative')
     end
 
     it 'prefers RENV over RAILS_ENV' do

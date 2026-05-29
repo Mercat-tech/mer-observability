@@ -10,20 +10,25 @@ module MerObservability
                   :log_injection,
                   :log_format,
                   :runtime_metrics_enabled,
-                  :runtime_metrics_interval
+                  :runtime_metrics_interval,
+                  :metrics_temporality_preference
 
     def initialize
-      @service_name             = ENV['OTEL_SERVICE_NAME'] || default_service_name
-      @service_version          = default_service_version
-      @environment              = ENV['RENV'] || ENV['RAILS_ENV'] || 'development'
-      @endpoint                 = ENV.fetch('OTEL_EXPORTER_OTLP_ENDPOINT', nil)
-      @enabled                  = !@endpoint.nil? && !@endpoint.empty?
-      @capture_tenant           = true
-      @sampler_ratio            = ENV.fetch('OTEL_TRACES_SAMPLER_ARG', '1.0').to_f
-      @log_injection            = ENV.fetch('OTEL_LOG_INJECTION', 'true') == 'true'
-      @log_format               = ENV['MER_LOG_FORMAT'] || default_log_format
-      @runtime_metrics_enabled  = ENV.fetch('OTEL_RUBY_RUNTIME_METRICS', 'true') == 'true'
-      @runtime_metrics_interval = ENV.fetch('OTEL_RUBY_RUNTIME_METRICS_INTERVAL', '30').to_i
+      @service_name                   = ENV['OTEL_SERVICE_NAME'] || default_service_name
+      @service_version                = default_service_version
+      @environment                    = ENV['RENV'] || ENV['RAILS_ENV'] || 'development'
+      @endpoint                       = ENV.fetch('OTEL_EXPORTER_OTLP_ENDPOINT', nil)
+      @enabled                        = !@endpoint.nil? && !@endpoint.empty?
+      @capture_tenant                 = true
+      @sampler_ratio                  = ENV.fetch('OTEL_TRACES_SAMPLER_ARG', '1.0').to_f
+      @log_injection                  = ENV.fetch('OTEL_LOG_INJECTION', 'true') == 'true'
+      @log_format                     = ENV['MER_LOG_FORMAT'] || default_log_format
+      @runtime_metrics_enabled        = ENV.fetch('OTEL_RUBY_RUNTIME_METRICS', 'true') == 'true'
+      @runtime_metrics_interval       = ENV.fetch('OTEL_RUBY_RUNTIME_METRICS_INTERVAL', '30').to_i
+      # delta: synchronous counters/histograms only emit when there's activity (vs cumulative,
+      # which re-exports every active series each interval). On per-sample-priced backends
+      # (SigNoz Cloud) this is what bounds ingestion cost to actual events.
+      @metrics_temporality_preference = ENV.fetch('OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE', 'delta')
     end
 
     private

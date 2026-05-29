@@ -18,6 +18,11 @@ module MerObservability
     def self.call(config)
       return unless config.enabled
 
+      # Applied via ENV because the OTLP metrics exporter reads its temporality
+      # preference at instantiation time. Setting it here ensures the exporter
+      # built below picks up the configured value regardless of load order.
+      ENV['OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE'] = config.metrics_temporality_preference
+
       span_processor = OpenTelemetry::SDK::Trace::Export::BatchSpanProcessor.new(build_trace_exporter(config))
       metric_reader  = build_metric_reader(config) if config.runtime_metrics_enabled
 
